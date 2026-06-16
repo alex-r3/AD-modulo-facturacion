@@ -1,254 +1,214 @@
-import { formatCurrencyNumber, normalizeDocument, sanitizeText } from '../utils/validators'
+import { normalizeDocument, sanitizeText } from '../utils/validators'
 
-const STORAGE_KEY = 'facturacion-module-state-v2'
+const GRAPHQL_URL = 'http://localhost:3003/graphql'
 
-const seedState = {
-	clientes: [
-		{
-			id: '11111111-1111-4111-8111-111111111111',
-			cedula: '123456789',
-			nombre: 'Inversiones Globales S.A.',
-			fecha_nacimiento: '1988-04-12',
-			tipo_cliente: 'Crédito',
-			direccion: 'Calle 123 # 45-67',
-			telefono: '+57 312 4556',
-			email: 'contacto@inversionesglobales.com',
-			estado: 'Activo',
-			created_at: '2026-06-01T08:00:00',
-			updated_at: '2026-06-01T08:00:00',
-		},
-		{
-			id: '22222222-2222-4222-8222-222222222222',
-			cedula: '987654321',
-			nombre: 'Tecnologias del Pacifico',
-			fecha_nacimiento: '1992-09-03',
-			tipo_cliente: 'Contado',
-			direccion: 'Carrera 11 # 22-33',
-			telefono: '+57 300 1122',
-			email: 'facturacion@tecpacifico.com',
-			estado: 'Activo',
-			created_at: '2026-06-02T08:00:00',
-			updated_at: '2026-06-02T08:00:00',
-		},
-		{
-			id: '33333333-3333-4333-8333-333333333333',
-			cedula: '555666777',
-			nombre: 'Distribuidora Alianza',
-			fecha_nacimiento: '1985-01-20',
-			tipo_cliente: 'Crédito',
-			direccion: 'Av. 5 # 10-15',
-			telefono: '+57 315 9090',
-			email: 'info@distribuidoraalianza.com',
-			estado: 'Inactivo',
-			created_at: '2026-06-03T08:00:00',
-			updated_at: '2026-06-03T08:00:00',
-		},
-	],
-	facturas: [
-		{
-			id: 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
-			numero_factura: 'ABC-123-123456789',
-			cliente_id: '11111111-1111-4111-8111-111111111111',
-			clienteNombre: 'Inversiones Globales S.A.',
-			tipo_pago: 'Crédito',
-			fecha_emision: '2026-06-12',
-			subtotal: 4500,
-			total_iva: 855,
-			total: 5355,
-			estado: 'Emitida',
-		},
-		{
-			id: 'aaaaaaa2-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
-			numero_factura: 'DEF-456-987654321',
-			cliente_id: '22222222-2222-4222-8222-222222222222',
-			clienteNombre: 'Tecnologias del Pacifico',
-			tipo_pago: 'Efectivo',
-			fecha_emision: '2026-06-14',
-			subtotal: 1200.5,
-			total_iva: 228.1,
-			total: 1428.6,
-			estado: 'Pagada',
-		},
-	],
-	detalle_facturas: [
-		{
-			id: 'ddddddd1-dddd-4ddd-8ddd-ddddddddddd1',
-			factura_id: 'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
-			producto_id: 'P-001',
-			producto_nombre: 'Licencia ERP',
-			cantidad: 1,
-			precio_unitario: 4500,
-			graba_iva: true,
-			subtotal_linea: 4500,
-		},
-		{
-			id: 'ddddddd2-dddd-4ddd-8ddd-ddddddddddd2',
-			factura_id: 'aaaaaaa2-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
-			producto_id: 'P-002',
-			producto_nombre: 'Soporte mensual',
-			cantidad: 2,
-			precio_unitario: 600.25,
-			graba_iva: true,
-			subtotal_linea: 1200.5,
-		},
-	],
+/**
+ * Función centralizada para enviar queries y mutations al servidor GraphQL.
+ * Maneja automáticamente la inyección del token JWT en las cabeceras.
+ */
+async function fetchGraphQL(query, variables = {}, token = '') {
+    const headers = {
+        'Content-Type': 'application/json',
+		'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImExYjJjM2Q0LWU1ZjYtNzg5MC1hYmNkLWVmMTIzNDU2Nzg5MCIsIm5vbWJyZSI6IlVzdWFyaW8gUHJ1ZWJhIiwicm9sIjoiZmFjdHVyYWRvciIsImlhdCI6MTc4MTYyNTQ2NiwiZXhwIjoxNzgxNzExODY2fQ.0_hZvhMkQXnYm9JFPtJWp6O7MT1Lz_stuTgPFPwGTYo'
+    }
+    
+    if (token) {
+        headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`
+    }
+
+    const response = await fetch(GRAPHQL_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, variables })
+    })
+
+    const json = await response.json()
+    
+    if (json.errors) {
+        throw new Error(json.errors[0].message || 'Error en la petición GraphQL')
+    }
+    
+    return json.data
 }
 
-const clone = (value) => JSON.parse(JSON.stringify(value))
-
-const createUuid = () => {
-	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-		return crypto.randomUUID()
-	}
-
-	const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-	return template.replace(/[xy]/g, (char) => {
-		const random = Math.floor(Math.random() * 16)
-		const value = char === 'x' ? random : (random & 0x3) | 0x8
-		return value.toString(16)
-	})
+/**
+ * Reemplaza la carga local y emula el snapshot combinando
+ * las consultas de clientes y facturas de la base de datos real.
+ */
+export async function getFacturacionSnapshot(token = '') {
+    const query = `
+        query GetSnapshot {
+            clientes {
+                id
+                cedula
+                nombre
+                fechaNacimiento
+                tipoCliente
+                direccion
+                telefono
+                email
+                estado
+                createdAt
+                updatedAt
+            }
+            facturas {
+                id
+                numeroFactura
+                clienteId
+                tipoPago
+                fechaEmision
+                subtotal
+                totalIva
+                total
+                estado
+                detalles {
+                    id
+                    productoCodigo
+                    productoNombre
+                    cantidad
+                    precioUnitario
+                    grabaIva
+                    subtotalLinea
+                }
+            }
+        }
+    `
+    const data = await fetchGraphQL(query, {}, token)
+    
+    // Mapeamos de vuelta a la estructura que tu UI espera (snake_case)
+    return {
+        clientes: (data.clientes || []).map(c => ({
+            id: c.id,
+            cedula: c.cedula,
+            nombre: c.nombre,
+            fecha_nacimiento: c.fechaNacimiento,
+            tipo_cliente: c.tipoCliente,
+            direccion: c.direccion,
+            telefono: c.telefono,
+            email: c.email,
+            estado: c.estado,
+            created_at: c.createdAt,
+            updated_at: c.updatedAt
+        })),
+        facturas: (data.facturas || []).map(f => ({
+            id: f.id,
+            numero_factura: f.numeroFactura,
+            cliente_id: f.clienteId,
+            tipo_pago: f.tipoPago,
+            fecha_emision: f.fechaEmision,
+            subtotal: f.subtotal,
+            total_iva: f.totalIva,
+            total: f.total,
+            estado: f.estado
+        })),
+        // Los detalles se extraen de manera aplanada si tu UI del snapshot los requiere de forma global
+        detalle_facturas: (data.facturas || []).reduce((acc, f) => {
+            const lineas = (f.detalles || []).map(d => ({
+                id: d.id,
+                factura_id: f.id,
+                producto_id: d.productoCodigo,
+                producto_nombre: d.productoNombre,
+                cantidad: d.cantidad,
+                precio_unitario: d.precioUnitario,
+                graba_iva: d.grabaIva,
+                subtotal_linea: d.subtotalLinea
+            }))
+            return [...acc, ...lineas]
+        }, [])
+    }
 }
 
-const normalizeState = (parsed) => ({
-	clientes: Array.isArray(parsed?.clientes) ? parsed.clientes : [],
-	facturas: Array.isArray(parsed?.facturas) ? parsed.facturas : [],
-	detalle_facturas: Array.isArray(parsed?.detalle_facturas) ? parsed.detalle_facturas : [],
-})
+/**
+ * HU1 - CA4: Registrar un nuevo cliente en el sistema a través de GraphQL.
+ */
+export async function createCliente(input, token = '') {
+    const mutation = `
+        mutation RegistrarCliente($input: CrearClienteInput!) {
+            crearCliente(input: $input) {
+                id
+            }
+        }
+    `
+    
+    const variables = {
+        input: {
+            cedula: normalizeDocument(input.cedula),
+            nombre: sanitizeText(input.nombre),
+            fechaNacimiento: sanitizeText(input.fecha_nacimiento || input.fechaNacimiento),
+            tipoCliente: sanitizeText(input.tipo_cliente || input.tipoCliente),
+            direccion: sanitizeText(input.direccion),
+            telefono: sanitizeText(input.telefono),
+            email: sanitizeText(input.email),
+            estado: sanitizeText(input.estado || 'Activo')
+        }
+    }
 
-const loadState = () => {
-	if (typeof window === 'undefined') {
-		return clone(seedState)
-	}
-
-	const stored = window.localStorage.getItem(STORAGE_KEY)
-	if (!stored) {
-		return clone(seedState)
-	}
-
-	try {
-		return normalizeState(JSON.parse(stored))
-	} catch {
-		return clone(seedState)
-	}
+    await fetchGraphQL(mutation, variables, token)
+    return getFacturacionSnapshot(token)
 }
 
-const persistState = (state) => {
-	if (typeof window === 'undefined') {
-		return
-	}
 
-	window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+
+
+/**
+ * Generar una factura real procesando detalles estructurados desde la API.
+ */
+export async function createFactura(input, token = '') {
+    const mutation = `
+        mutation RegistrarFactura($input: CrearFacturaInput!) {
+            crearFactura(input: $input) {
+                id
+            }
+        }
+    `
+
+    const detallesInput = (input.detalles || []).map(d => ({
+        productoCodigo: sanitizeText(d.producto_id || d.productoCodigo),
+        cantidad: Number(d.cantidad)
+    }))
+
+    const variables = {
+        input: {
+            clienteId: input.cliente_id || input.clienteId,
+            tipoPago: sanitizeText(input.tipo_pago || input.tipoPago),
+            detalles: detallesInput
+        }
+    }
+
+    await fetchGraphQL(mutation, variables, token)
+    return getFacturacionSnapshot(token)
 }
 
-export async function getFacturacionSnapshot() {
-	return clone(loadState())
+/**
+ * HU1 - CA3: Inactivar cliente (Mutación corregida sin el error de sintaxis).
+ */
+export async function deleteCliente(clienteId, token = '') {
+    const mutation = `
+        mutation DeshabilitarCliente($id: ID!) {
+            inactivarCliente(id: $id) {
+                id
+                estado
+            }
+        }
+    `
+    
+    await fetchGraphQL(mutation, { id: clienteId }, token)
+    return getFacturacionSnapshot(token)
 }
 
-export async function createCliente(input) {
-	const state = loadState()
-	const cedulaNormalizada = normalizeDocument(input.cedula)
-
-	if (state.clientes.some((cliente) => normalizeDocument(cliente.cedula) === cedulaNormalizada)) {
-		throw new Error('Ya existe un cliente con esa cédula.')
-	}
-
-	const timestamp = new Date().toISOString()
-	const nextState = {
-		...state,
-		clientes: [
-			...state.clientes,
-			{
-				id: createUuid(),
-				cedula: cedulaNormalizada,
-				nombre: sanitizeText(input.nombre),
-				fecha_nacimiento: sanitizeText(input.fecha_nacimiento),
-				tipo_cliente: sanitizeText(input.tipo_cliente),
-				direccion: sanitizeText(input.direccion),
-				telefono: sanitizeText(input.telefono),
-				email: sanitizeText(input.email),
-				estado: sanitizeText(input.estado),
-				created_at: timestamp,
-				updated_at: timestamp,
-			},
-		],
-	}
-
-	persistState(nextState)
-	return clone(nextState)
-}
-
-export async function createFactura(input) {
-	const state = loadState()
-	const cliente = state.clientes.find((item) => item.id === input.cliente_id)
-
-	if (!cliente) {
-		throw new Error('El cliente seleccionado no existe.')
-	}
-
-	const facturaId = createUuid()
-	const detalles = Array.isArray(input.detalles) ? input.detalles : []
-
-	const nextState = {
-		...state,
-		facturas: [
-			...state.facturas,
-			{
-				id: facturaId,
-				numero_factura: sanitizeText(input.numero_factura),
-				cliente_id: cliente.id,
-				clienteNombre: cliente.nombre,
-				tipo_pago: sanitizeText(input.tipo_pago),
-				fecha_emision: sanitizeText(input.fecha_emision),
-				subtotal: formatCurrencyNumber(input.subtotal),
-				total_iva: formatCurrencyNumber(input.total_iva),
-				total: formatCurrencyNumber(input.total),
-				estado: sanitizeText(input.estado),
-			},
-		],
-		detalle_facturas: [
-			...state.detalle_facturas,
-			...detalles.map((detalle) => ({
-				id: createUuid(),
-				factura_id: facturaId,
-				producto_id: sanitizeText(detalle.producto_id),
-				producto_nombre: sanitizeText(detalle.producto_nombre),
-				cantidad: Number(detalle.cantidad),
-				precio_unitario: formatCurrencyNumber(detalle.precio_unitario),
-				graba_iva: Boolean(detalle.graba_iva),
-				subtotal_linea: formatCurrencyNumber(detalle.subtotal_linea),
-			})),
-		],
-	}
-
-	persistState(nextState)
-	return clone(nextState)
-}
-
-export async function deleteCliente(clienteId) {
-	const state = loadState()
-	const facturasToDelete = state.facturas
-		.filter((factura) => factura.cliente_id === clienteId)
-		.map((factura) => factura.id)
-
-	const nextState = {
-		...state,
-		clientes: state.clientes.filter((cliente) => cliente.id !== clienteId),
-		facturas: state.facturas.filter((factura) => factura.cliente_id !== clienteId),
-		detalle_facturas: state.detalle_facturas.filter((detalle) => !facturasToDelete.includes(detalle.factura_id)),
-	}
-
-	persistState(nextState)
-	return clone(nextState)
-}
-
-export async function deleteFactura(facturaId) {
-	const state = loadState()
-	const nextState = {
-		...state,
-		facturas: state.facturas.filter((factura) => factura.id !== facturaId),
-		detalle_facturas: state.detalle_facturas.filter((detalle) => detalle.factura_id !== facturaId),
-	}
-
-	persistState(nextState)
-	return clone(nextState)
+/**
+ * Cambia el estado de una factura a 'Anulada' de acuerdo con tu esquema de base de datos.
+ */
+export async function deleteFactura(facturaId, token = '') {
+    const mutation = `
+        mutation AnularFactura($id: ID!, $estado: String!) {
+            actualizarEstadoFactura(id: $id, estado: $estado) {
+                id
+                estado
+            }
+        }
+    `
+    
+    await fetchGraphQL(mutation, { id: facturaId, estado: 'Anulada' }, token)
+    return getFacturacionSnapshot(token)
 }
