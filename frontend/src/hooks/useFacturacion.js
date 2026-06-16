@@ -70,6 +70,13 @@ export function useFacturacion() {
   const [detalleItems, setDetalleItems] = useState([])
   const [busyAction, setBusyAction] = useState(null)
 
+const [confirmDialog, setConfirmDialog] = useState({
+  isOpen: false,
+  title: '',
+  message: '',
+  onConfirm: () => {},
+})
+
   useEffect(() => {
     let mounted = true
 
@@ -263,32 +270,48 @@ export function useFacturacion() {
 
   const handleSubmit = async () => (modalMode === 'cliente' ? submitCliente() : submitFactura())
 
-  const handleDeleteCliente = async (id) => {
-    setBusyAction(`delete-cliente-${id}`)
-    try {
-      const snapshot = await deleteCliente(id)
-      setClientes(snapshot.clientes)
-      setFacturas(snapshot.facturas)
-      toast.success('Cliente eliminado correctamente.')
-    } catch (error) {
-      toast.error(error.message || 'No fue posible eliminar el cliente.')
-    } finally {
-      setBusyAction(null)
-    }
-  }
+  const handleDeleteCliente = (id) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '¿Eliminar Cliente?',
+      message: 'Esta acción es irreversible. Se eliminará el registro del cliente permanentemente del catálogo.',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false })) // Cierra el diálogo
+        setBusyAction(`delete-cliente-${id}`)
+        try {
+          const snapshot = await deleteCliente(id)
+          setClientes(snapshot.clientes)
+          setFacturas(snapshot.facturas)
+          toast.success('Cliente eliminado correctamente.')
+        } catch (error) {
+          toast.error(error.message || 'No fue posible eliminar el cliente.')
+        } finally {
+          setBusyAction(null)
+        }
+      },
+    })
+  } 
 
-  const handleDeleteFactura = async (id) => {
-    setBusyAction(`delete-factura-${id}`)
-    try {
-      const snapshot = await deleteFactura(id)
-      setClientes(snapshot.clientes)
-      setFacturas(snapshot.facturas)
-      toast.success('Factura eliminada correctamente.')
-    } catch (error) {
-      toast.error(error.message || 'No fue posible eliminar la factura.')
-    } finally {
-      setBusyAction(null)
-    }
+  const handleDeleteFactura = (id) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '¿Eliminar Factura?',
+      message: '¿Estás seguro de que deseas anular y borrar esta factura? Los montos acumulados se recalcularán.',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false })) // Cierra el modal
+        setBusyAction(`delete-factura-${id}`)
+        try {
+          const snapshot = await deleteFactura(id)
+          setClientes(snapshot.clientes)
+          setFacturas(snapshot.facturas)
+          toast.success('Factura eliminada correctamente.')
+        } catch (error) {
+          toast.error(error.message || 'No fue posible eliminar la factura.')
+        } finally {
+          setBusyAction(null)
+        }
+      },
+    })
   }
 
   const handleLogout = () => {
@@ -340,5 +363,7 @@ export function useFacturacion() {
     handleDeleteCliente,
     handleDeleteFactura,
     handleLogout,
+    confirmDialog,
+    closeConfirmDialog: () => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
   }
 }
