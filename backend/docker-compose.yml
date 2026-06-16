@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  # Base de datos COMPARTIDA: contiene tanto las tablas de Clientes
+  # como las de Facturación (por eso cliente_id puede ser FK real)
+  facturacion-db:
+    image: postgres:16-alpine
+    container_name: facturacion-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: facturacion_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - facturacion_db_data:/var/lib/postgresql/data
+      # Si tienen el SQL del módulo de Clientes (Torres/Ramírez),
+      # pueden montarlo aquí para que se creen sus tablas también:
+      # - ./sql/clientes.sql:/docker-entrypoint-initdb.d/01_clientes.sql
+
+  facturacion-api:
+    build: .
+    container_name: facturacion-api
+    restart: unless-stopped
+    depends_on:
+      - facturacion-db
+    env_file:
+      - .env
+    environment:
+      DB_HOST: facturacion-db
+    ports:
+      - "3003:3003"
+
+volumes:
+  facturacion_db_data:
