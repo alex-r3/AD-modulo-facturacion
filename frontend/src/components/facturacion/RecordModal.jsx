@@ -30,7 +30,7 @@ export default function RecordModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+      <div className="w-full max-w-5xl max-h-[calc(100vh-2rem)] flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-slate-400">Formulario</p>
@@ -46,12 +46,12 @@ export default function RecordModal({
           </button>
         </div>
 
-        <form
-          className="mt-5 space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            onSubmit()
-          }}
+       <form
+        className="mt-5 flex-1 overflow-y-auto pr-2 space-y-4" // <-- Añadidas estas clases de scroll
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSubmit()
+        }}
         >
           {mode === 'cliente' ? (
             <div className="grid gap-4 md:grid-cols-2">
