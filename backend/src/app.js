@@ -33,6 +33,11 @@ Torres — Backend & API
       `.trim()
     },
     servers: [
+      // En producción (Render), usa la URL pública automática
+      ...(process.env.RENDER_EXTERNAL_URL
+        ? [{ url: process.env.RENDER_EXTERNAL_URL, description: 'Servidor en producción (Render)' }]
+        : []
+      ),
       {
         url: `http://localhost:${process.env.PORT || 3001}`,
         description: 'Servidor local de desarrollo'
